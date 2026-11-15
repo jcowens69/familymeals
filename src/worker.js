@@ -15,11 +15,20 @@ const SCHEMA = [
 const COLORS = ["#DB3F27", "#2341C4", "#1D8256", "#B86A00", "#77479C", "#16858A", "#BC4C86", "#8A5A2B", "#4A9433", "#B23A2B"];
 const WEEK = /^\d{4}-\d{2}-\d{2}$/;
 const RID = /^[a-z0-9-]{1,80}$/;
-const MAX_VOTES = 5;
+const MAX_VOTES = 7;
 
 let ready = null;
+// Columns added after the first release. Each runs once; "duplicate column" means it's already there.
+const UPGRADES = [`ALTER TABLE votes ADD COLUMN note TEXT`];
+async function migrate(env) {
+  await env.DB.batch(SCHEMA.map((s) => env.DB.prepare(s)));
+  for (const sql of UPGRADES) {
+    try { await env.DB.prepare(sql).run(); }
+    catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; }
+  }
+}
 function ensureSchema(env) {
-  if (!ready) ready = env.DB.batch(SCHEMA.map((s) => env.DB.prepare(s))).catch((e) => { ready = null; throw e; });
+  if (!ready) ready = migrate(env).catch((e) => { ready = null; throw e; });
   return ready;
 }
 
@@ -116,7 +125,7 @@ async function state(env, week) {
   const [members, ratings, votes, log, plan, shop, gid] = await Promise.all([
     env.DB.prepare("SELECT id, name, color, email, is_cook FROM members ORDER BY pos, created").all(),
     env.DB.prepare("SELECT member_id, recipe_id, stars FROM ratings").all(),
-    env.DB.prepare("SELECT member_id, week, recipe_id FROM votes WHERE week = ?").bind(week).all(),
+    env.DB.prepare("SELECT member_id, week, recipe_id, note FROM votes WHERE week = ?").bind(week).all(),
     env.DB.prepare("SELECT id, recipe_id, d FROM cook_log ORDER BY d DESC, created DESC").all(),
     env.DB.prepare("SELECT recipe_id FROM plans WHERE week = ? ORDER BY pos").bind(week).all(),
     env.DB.prepare("SELECT data FROM shopping WHERE week = ?").bind(week).first(),
@@ -126,7 +135,7 @@ async function state(env, week) {
     week,
     members: members.results.map((m) => ({ id: m.id, name: m.name, color: m.color, email: m.email || "", cook: !!m.is_cook })),
     ratings: ratings.results.map((r) => [r.member_id, r.recipe_id, r.stars]),
-    votes: votes.results.map((v) => [v.member_id, v.recipe_id]),
+    votes: votes.results.map((v) => [v.member_id, v.recipe_id, v.note || ""]),
     log: log.results.map((e) => ({ id: e.id, r: e.recipe_id, d: e.d })),
     plan: plan.results.map((p) => p.recipe_id),
     shop: shop ? JSON.parse(shop.data) : { got: {}, extras: [] },
@@ -226,10 +235,16 @@ async function api(req, env, url) {
   if (p === "/vote" && m === "POST") {
     const { member, recipe, week, on } = body;
     if (!RID.test(recipe || "") || !WEEK.test(week || "") || !(await memberOk(env, member, s))) return fail(403, "You can only vote as yourself.");
+    const note = typeof body.note === "string" ? body.note.trim().slice(0, 200) : null;
     if (on) {
-      const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM votes WHERE member_id = ? AND week = ?").bind(member, week).first();
-      if (n.n >= MAX_VOTES) return fail(409, `You've used all ${MAX_VOTES} votes. Remove one first.`);
-      await env.DB.prepare("INSERT OR IGNORE INTO votes (member_id, week, recipe_id, created) VALUES (?, ?, ?, ?)").bind(member, week, recipe, now()).run();
+      const had = await env.DB.prepare("SELECT 1 AS x FROM votes WHERE member_id = ? AND week = ? AND recipe_id = ?").bind(member, week, recipe).first();
+      if (!had) {
+        const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM votes WHERE member_id = ? AND week = ?").bind(member, week).first();
+        if (n.n >= MAX_VOTES) return fail(409, `You've used all ${MAX_VOTES} votes. Remove one first.`);
+        await env.DB.prepare("INSERT INTO votes (member_id, week, recipe_id, created, note) VALUES (?, ?, ?, ?, ?)").bind(member, week, recipe, now(), note || null).run();
+      } else if (note !== null) {
+        await env.DB.prepare("UPDATE votes SET note = ? WHERE member_id = ? AND week = ? AND recipe_id = ?").bind(note || null, member, week, recipe).run();
+      }
     } else await env.DB.prepare("DELETE FROM votes WHERE member_id = ? AND week = ? AND recipe_id = ?").bind(member, week, recipe).run();
     return json({ ok: true });
   }

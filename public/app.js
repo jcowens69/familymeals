@@ -2,7 +2,7 @@
 (() => {
 "use strict";
 let R = [], BY = {};
-const MAX_VOTES = 5;
+const MAX_VOTES = 7;
 
 /* ---------- Icons ---------- */
 const sv = (p, extra="") => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${extra}>${p}</svg>`;
@@ -112,8 +112,9 @@ async function load(){
     S.ratings = {}; for (const [m, r, n] of g.ratings) (S.ratings[m] ||= {})[r] = n;
     S.log = g.log;
     for (const d of res) {
-      const votes = {}; for (const [m, r] of d.votes) (votes[r] ||= []).push(m);
-      S.wk[d.week] = {votes, plan: d.plan, shop: d.shop};
+      const votes = {}, notes = {};
+      for (const [m, r, note] of d.votes) { (votes[r] ||= []).push(m); if (note) (notes[r] ||= {})[m] = note; }
+      S.wk[d.week] = {votes, notes, plan: d.plan, shop: d.shop};
     }
     if (S.sessionMember) remember(undefined, S.sessionMember);
     S.isOwner = S.role === "cook";
@@ -141,7 +142,11 @@ function computeStats(){
   for (const s of Object.values(st)) { s.avg = s.n ? s.sum / s.n : 0; s.dates.sort().reverse(); }
   return st;
 }
-const wkOf = key => S.wk[key] || {votes:{}, plan:[], shop:{got:{}, extras:[]}};
+const wkOf = key => S.wk[key] || {votes:{}, notes:{}, plan:[], shop:{got:{}, extras:[]}};
+// Requests ("no onions please") left with votes for one meal in one week: [[memberId, text], ...]
+const notesFor = (key, rid) => Object.entries((wkOf(key).notes || {})[rid] || {}).filter(([u, t]) => t && S.members.some(m => m.id === u));
+const myNote = rid => ((wkOf(weekKey(0)).notes || {})[rid] || {})[S.uid] || "";
+const reqList = (key, rid) => { const ns = notesFor(key, rid); return ns.length ? `<ul class="reqs">${ns.map(([u, t]) => `<li>${face(u)}<span><b>${esc(pname(u))}:</b> ${esc(t)}</span></li>`).join("")}</ul>` : ""; };
 function weekVotes(key=weekKey()){
   const out = {};
   for (const [rid, us] of Object.entries(wkOf(key).votes)) if (BY[rid]) out[rid] = us.filter(u => S.members.some(m => m.id === u));
@@ -181,11 +186,23 @@ function toggleVote(rid){
   const key = weekKey(0), picks = myPicks(), on = !picks.includes(rid);
   if (on && picks.length >= MAX_VOTES) { toast(`You've used all ${MAX_VOTES} votes. Remove one first.`); return; }
   mutate(() => {
-    const w = wkOf(key), votes = {...w.votes};
+    const w = wkOf(key), votes = {...w.votes}, notes = {...(w.notes || {})};
     votes[rid] = on ? [...(votes[rid] || []), S.uid] : (votes[rid] || []).filter(u => u !== S.uid);
-    S.wk[key] = {...w, votes};
+    if (!on && notes[rid]) { notes[rid] = {...notes[rid]}; delete notes[rid][S.uid]; }
+    S.wk[key] = {...w, votes, notes};
   }, "/vote", {member: S.uid, week: key, recipe: rid, on});
   if (on) toast(`Voted for ${BY[rid].name}`);
+}
+function saveNote(rid, text){
+  if (!needPersonal()) return;
+  const key = weekKey(0); text = text.trim().slice(0, 200);
+  if (!myPicks().includes(rid)) { toast("Vote for this meal first, then add your request."); return; }
+  mutate(() => {
+    const w = wkOf(key), notes = {...(w.notes || {})};
+    notes[rid] = {...(notes[rid] || {}), [S.uid]: text};
+    S.wk[key] = {...w, notes};
+  }, "/vote", {member: S.uid, week: key, recipe: rid, on: true, note: text});
+  toast(text ? "Request saved" : "Request removed");
 }
 function logMade(rid, d){
   if (!S.isOwner) return;
@@ -374,17 +391,28 @@ function renderWeek(){
       <span class="rk">${i+1}</span>
       <div style="min-width:0"><button class="linkish" data-open="${rid}">${esc(r.name)}</button>
         <div class="sub"><span class="faces">${us.map(face).join("")}</span><span>${us.length} vote${us.length>1?"s":""}</span>${s.n ? `<span class="rating-mini">${I.star}${s.avg.toFixed(1)}</span>` : ""}${recency(s)}</div>
-        <div class="bar"><b style="width:${Math.round(us.length / maxV * 100)}%"></b></div></div>
+        <div class="bar"><b style="width:${Math.round(us.length / maxV * 100)}%"></b></div>
+        ${reqList(key, rid)}${isNow && us.includes(S.uid) ? `<button class="linkbtn reqbtn" data-req="${rid}">${myNote(rid) ? "Change your request" : "+ Add a request"}</button>` : ""}</div>
       <div>${S.isOwner ? (plan.includes(rid) ? `<button class="btn sm ghost" data-plan="${rid}">${I.check}On menu</button>` : `<button class="btn sm" data-plan="${rid}">${I.plus}Menu</button>`) : (plan.includes(rid) ? `<span class="pill menu">On the menu</span>` : "")}</div>
     </li>`; }).join("")}</ol>` : `<div class="blank"><b>No votes yet${isNow ? "" : " for this week"}.</b>${isNow ? "Browse the cookbook and tap the heart on the meals you want." : "Votes are only collected for the week coming up."}</div>`;
   const madeThisWeek = new Set(S.log.filter(e => { const d = parseYmd(e.d); const s = weekStart(S.weekOff); const end = new Date(s); end.setDate(s.getDate()+7); return d >= s && d < end; }).map(e => e.r));
   const menuHtml = plan.length ? `<ul class="menu-list">${plan.map(rid => { const r = BY[rid]; if (!r) return ""; const done = madeThisWeek.has(rid); return `<li class="${done ? "done" : ""}">${stamp(r)}
-      <div style="min-width:0"><button class="linkish" data-open="${rid}" style="all:unset;cursor:pointer;font-weight:600">${esc(r.name)}</button><div class="meta" style="font-size:.78rem">${esc(fmtTime(r))}${done ? ` · <span style="color:var(--herb);font-weight:600">made</span>` : ""}</div></div>
+      <div style="min-width:0"><button class="linkish" data-open="${rid}" style="all:unset;cursor:pointer;font-weight:600">${esc(r.name)}</button><div class="meta" style="font-size:.78rem">${esc(fmtTime(r))}${done ? ` · <span style="color:var(--herb);font-weight:600">made</span>` : ""}</div>${reqList(key, rid)}</div>
       <div class="acts">${S.isOwner ? `${done ? "" : `<button class="btn sm good" data-made="${rid}" title="Log as made today">${I.check}Made</button>`}<button class="iconbtn" style="width:32px;height:32px;border-radius:9px" data-plan="${rid}" aria-label="Remove from menu">${I.close}</button>` : ""}</div>
     </li>`; }).join("")}</ul>` : `<div class="blank"><b>The menu is empty.</b>${S.isOwner ? "Add meals from the votes, or open any recipe and add it." : "The cook picks the menu from the votes."}</div>`;
+  const mine = isNow ? `<div class="panel mypicks"><h3>Your picks <span class="mono" style="font-size:.85rem;color:var(--muted)">${picks.length} of ${MAX_VOTES}</span></h3>
+      <p class="hint">${picks.length ? (picks.length < MAX_VOTES ? `You can pick ${MAX_VOTES - picks.length} more. Tap the heart on any recipe in the cookbook.` : "That's all your votes. Remove one to pick something else.") : `Pick up to ${MAX_VOTES} meals you want this week. Tap the heart on any recipe in the cookbook.`}</p>
+      ${picks.length ? `<ul class="menu-list">${picks.map(rid => { const r = BY[rid]; if (!r) return ""; const note = myNote(rid); return `<li>${stamp(r)}
+        <div style="min-width:0"><button class="linkish" data-open="${rid}" style="all:unset;cursor:pointer;font-weight:600">${esc(r.name)}</button>
+          <div class="meta" style="font-size:.8rem">${note ? `<span>Your request: ${esc(note)}</span>` : ""}${plan.includes(rid) ? `<span class="pill menu">On the menu</span>` : ""}</div>
+          <button class="linkbtn reqbtn" data-req="${rid}">${note ? "Change request" : "+ Add a request"}</button></div>
+        <div class="acts"><button class="btn sm ghost" data-vote="${rid}" aria-label="Remove your vote for ${esc(r.name)}">${I.close}Remove</button></div>
+      </li>`; }).join("")}</ul>` : `<p style="margin:0"><a class="btn" href="#cookbook">Browse the cookbook</a></p>`}
+    </div>` : "";
   $("#v-week").innerHTML = `
     <div class="view-head"><div><h2>${weekLabel()}</h2><p>${isNow ? "Vote on what you want this week. The cook picks the menu." : S.weekOff < 0 ? "A past week." : "Planning ahead."}</p></div>
       <div class="weeknav"><button class="iconbtn" data-week="-1" aria-label="Previous week">${I.left}</button>${S.weekOff ? `<button class="btn sm ghost" data-week="0">This week</button>` : ""}<button class="iconbtn" data-week="1" aria-label="Next week">${I.right}</button></div></div>
+    ${mine}
     <div class="two">
       <div class="panel"><h3>Family votes</h3><p class="hint">Meals made in the last two weeks are flagged, so nothing repeats too soon.</p>${ballot}${tallyHtml}</div>
       <div class="panel"><h3>The menu <span class="mono" style="font-size:.85rem;color:var(--muted)">${plan.length} meal${plan.length===1?"":"s"}</span></h3><p class="hint">${S.isOwner ? "Tap Made when you cook one; it goes in the kitchen log." : "What the cook has planned."}</p>${menuHtml}
@@ -459,6 +487,8 @@ function renderSheet(){
   const steps = (r.dir || "").split(/(?<=\.)\s+(?=[A-Z])/).filter(Boolean);
   const canRate = canPersonal();
   const keepChecks = [...dlg.querySelectorAll(".ing input")].map(i => i.checked);
+  const oldReq = dlg.querySelector("#reqIn"), keepReq = oldReq && oldReq.dataset.rid === r.id ? {v: oldReq.value, f: document.activeElement === oldReq} : null;
+  const others = notesFor(weekKey(0), r.id).filter(([u]) => u !== S.uid);
   dlg.innerHTML = `<div class="sheet" style="${cvar(r)}">
     <div class="sheet-head">
       <div class="row">${stamp(r)}<span class="cat-label">${esc(catOf(r).short)}</span><button class="close" data-close aria-label="Close">${I.close}</button></div>
@@ -482,13 +512,17 @@ function renderSheet(){
         <button class="heart" data-vote="${r.id}" aria-pressed="${voted}" ${S.live ? "" : "disabled"}>${I.heart}${voted ? "Voted for this week" : "Vote for this week"}</button>
         ${S.isOwner ? `<button class="btn ${onMenu ? "ghost" : ""}" data-plan0="${r.id}">${onMenu ? I.check + "On this week's menu" : I.plus + "Add to this week's menu"}</button>` : (onMenu ? `<span class="pill menu" style="align-self:center">On this week's menu</span>` : "")}
       </div>
+      ${voted ? `<form class="reqform" id="reqForm"><label for="reqIn">Any requests for the cook?</label><div class="row2"><input class="inp" id="reqIn" data-rid="${r.id}" maxlength="200" autocomplete="off" placeholder="Like no onions, or extra sauce on mine" value="${esc(myNote(r.id))}"><button class="btn sm" type="submit">Save</button></div></form>` : ""}
+      ${others.length ? `<div class="box"><h4>Requests from the family this week</h4><ul class="reqs">${others.map(([u, t]) => `<li>${face(u)}<span><b>${esc(pname(u))}:</b> ${esc(t)}</span></li>`).join("")}</ul></div>` : ""}
       <div><h3>Ingredients</h3><ul class="ing">${(r.ing || []).map((x, i) => `<li><label><input type="checkbox" ${keepChecks[i] ? "checked" : ""}><span>${esc(x)}</span></label></li>`).join("")}</ul></div>
       <div><h3>Directions</h3><ol class="steps">${steps.map(s => `<li><span>${esc(s)}</span></li>`).join("")}</ol></div>
       ${(r.note || []).map(n => `<p class="fine">${esc(n)}</p>`).join("")}
     </div></div>`;
+  if (keepReq) { const i = dlg.querySelector("#reqIn"); if (i) { i.value = keepReq.v; if (keepReq.f) i.focus(); } }
 }
-function openRecipe(id){
+function openRecipe(id, focusReq){
   S.open = id; renderSheet();
+  if (focusReq) setTimeout(() => { const i = $("#reqIn"); if (i) { i.scrollIntoView({block: "center"}); i.focus(); } }, 60);
   const d = $("#dlg"); if (!d.open) d.showModal();
   d.querySelector(".sheet").scrollTop = 0;
 }
@@ -683,6 +717,7 @@ document.addEventListener("click", async e => {
   const t = e.target.closest("button, [data-open]"); if (!t) return;
   const d = t.dataset;
   if (d.vote) { e.stopPropagation(); toggleVote(d.vote); }
+  else if (d.req) openRecipe(d.req, true);
   else if (d.open) { $("#fam").open && $("#fam").close(); openRecipe(d.open); }
   else if (d.cat) { S.cat = d.cat; lsSet("ft-cat", S.cat); render(); }
   else if (d.quick) { S.quick = !S.quick; render(); }
@@ -727,6 +762,7 @@ document.addEventListener("submit", async e => {
   const f = e.target, btn = f.querySelector("[type=submit]");
   const busy = async fn => { if (btn) btn.disabled = true; try { await fn(); } catch (err) { setErr(err.message); if (!$("#gateErr")) toast(err.message); } finally { if (btn) btn.disabled = false; } };
   if (f.id === "sheetLog") logMade(S.open, $("#sheetDate").value);
+  if (f.id === "reqForm") { saveNote(S.open, $("#reqIn").value); $("#reqIn").blur(); }
   if (f.id === "addExtra") { const v = $("#extraIn").value.trim(); if (!v) return; const key = weekKey(), s = shopOf(key); if ((s.extras||[]).includes(v)) return; setShop(key, {got:{...(s.got||{})}, extras:[...(s.extras || []), v]}); }
   if (f.id === "logForm") {
     const name = $("#logName").value.trim().toLowerCase(); const r = R.find(x => x.name.toLowerCase() === name) || R.find(x => x.name.toLowerCase().includes(name));
