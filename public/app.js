@@ -78,7 +78,7 @@ const S = {
   token: lsGet("fm-token"), me: lsGet("fm-me"), role: "family", sessionMember: null,
   members: [], ratings: {}, wk: {}, log: [], googleClientId: "",
   live: false, readOnly: false, canWrite: true, isOwner: false, uid: null, offline: false, pending: 0,
-  q: "", cat: lsGet("ft-cat") || "all", quick: false, sort: lsGet("ft-sort") || "az", weekOff: 0, view: "cookbook", open: null,
+  q: "", cat: lsGet("ft-cat") || "all", quick: false, staple: false, sort: lsGet("ft-sort") || "az", weekOff: 0, view: "cookbook", open: null,
 };
 
 /* ---------- Server ---------- */
@@ -284,9 +284,11 @@ function buildGroceries(meals){
 let chipsBuilt = false;
 function renderChips(){
   const counts = {}; R.forEach(r => counts[r.cat] = (counts[r.cat] || 0) + 1);
+  const stapleN = R.filter(r => r.staple).length;
   const quickN = R.filter(isQuick).length;
   $("#chips").innerHTML =
     `<button class="chip plain" data-cat="all" aria-pressed="${S.cat==="all"}">All <small>${R.length}</small></button>` +
+    (stapleN ? `<button class="chip" data-staple="1" aria-pressed="${S.staple}" style="--c:var(--tomato)"><span class="dot">${I.heart}</span>Family staples <small>${stapleN}</small></button>` : "") +
     `<button class="chip" data-quick="1" aria-pressed="${S.quick}" style="--c:var(--accent)"><span class="dot">${I.bolt}</span>30 minutes or less <small>${quickN}</small></button>` +
     Object.entries(CATS).filter(([c]) => counts[c]).map(([c, v]) => `<button class="chip" data-cat="${esc(c)}" aria-pressed="${S.cat===c}" style="--c:var(--c-${v.k})"><span class="dot">${I[v.k]}</span>${esc(v.short)} <small>${counts[c]}</small></button>`).join("");
 }
@@ -344,7 +346,7 @@ function renderCookbook(){
   renderChips();
   renderShelves(st);
   const q = S.q.trim().toLowerCase();
-  let rows = R.filter(r => (S.cat === "all" || r.cat === S.cat) && (!S.quick || isQuick(r)) && matches(r, q));
+  let rows = R.filter(r => (S.cat === "all" || r.cat === S.cat) && (!S.quick || isQuick(r)) && (!S.staple || r.staple) && matches(r, q));
   const by = {
     az: (a, b) => a.name.localeCompare(b.name),
     liked: (a, b) => st[b.id].avg - st[a.id].avg || st[b.id].n - st[a.id].n || a.name.localeCompare(b.name),
@@ -353,7 +355,7 @@ function renderCookbook(){
     fast: (a, b) => (a.mins ?? 999) - (b.mins ?? 999) || a.name.localeCompare(b.name),
   };
   rows.sort(by[S.sort] || by.az);
-  const titleBits = [S.cat === "all" ? "All recipes" : catOf({cat:S.cat}).short]; if (S.quick) titleBits.push("quick");
+  const titleBits = [S.cat === "all" ? "All recipes" : catOf({cat:S.cat}).short]; if (S.staple) titleBits[0] = S.cat === "all" ? "Family staples" : titleBits[0] + " staples"; if (S.quick) titleBits.push("quick");
   $("#resTitle").textContent = q ? `Results for “${S.q.trim()}”` : titleBits.join(", ");
   $("#resCount").textContent = `${rows.length} of ${R.length}`;
   $("#grid").innerHTML = rows.length ? rows.map(r => card(r, st, picks, plan)).join("") : `<div class="empty-results"><b style="font-family:var(--f-display);font-size:1.1rem;color:var(--ink)">No recipes match.</b><br>Try a single ingredient, or clear the section filter.</div>`;
@@ -684,6 +686,7 @@ document.addEventListener("click", async e => {
   else if (d.open) { $("#fam").open && $("#fam").close(); openRecipe(d.open); }
   else if (d.cat) { S.cat = d.cat; lsSet("ft-cat", S.cat); render(); }
   else if (d.quick) { S.quick = !S.quick; render(); }
+  else if (d.staple) { S.staple = !S.staple; render(); }
   else if (d.rate) rate(S.open, +d.rate);
   else if (d.close !== undefined) $("#dlg").close();
   else if (d.famclose !== undefined) $("#fam").close();
