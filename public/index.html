@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Family Table</title>
+<meta name="description" content="Our family cookbook: rate meals, vote on the week's dinners, and build the grocery list.">
+<meta name="theme-color" content="#182F95">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Family Table">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div id="gate" class="gate" hidden><div class="wrap" style="width:100%;display:grid;place-items:center"><div class="gate-card" id="gateCard"></div></div></div>
+
+<div id="app" hidden>
+<header class="top">
+  <div class="wrap top-inner">
+    <div class="brand">
+      <svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#fff"/><circle cx="24" cy="24" r="16.5" fill="none" stroke="#182F95" stroke-width="2.5"/><circle cx="24" cy="24" r="11" fill="#DB3F27"/><path d="M19 23.2c0-2.4 2.2-3.7 5-1.6 2.8-2.1 5-.8 5 1.6 0 2.7-3.2 4.9-5 6.1-1.8-1.2-5-3.4-5-6.1z" fill="#fff"/></svg>
+      <div><h1>Family Table</h1><p>Our cookbook · rate it, vote on it, cook it</p></div>
+    </div>
+    <button id="me" class="me" aria-label="You and the family"></button>
+  </div>
+  <nav class="wrap tabs" aria-label="Sections">
+    <a href="#cookbook" data-v="cookbook">Cookbook</a>
+    <a href="#week" data-v="week">This week <span class="count" id="voteCount" hidden></span></a>
+    <a href="#groceries" data-v="groceries">Groceries</a>
+    <a href="#log" data-v="log">Kitchen log</a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <div id="installbar" class="installbar" hidden></div>
+  <div id="notice" class="notice" hidden></div>
+
+  <section id="v-cookbook">
+    <div class="searchbar">
+      <label class="search"><span hidden>Search recipes</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" type="search" placeholder="Search recipes, or an ingredient like “salmon”" autocomplete="off">
+      </label>
+      <select id="sort" class="sel" aria-label="Sort recipes">
+        <option value="az">A to Z</option>
+        <option value="liked">Most liked</option>
+        <option value="made">Most made</option>
+        <option value="since">Longest since made</option>
+        <option value="fast">Quickest first</option>
+      </select>
+    </div>
+    <div class="chips" id="chips" role="group" aria-label="Filter by section"></div>
+    <div id="shelves"></div>
+    <div class="results-head"><h2 id="resTitle">All recipes</h2><span id="resCount"></span></div>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <section id="v-week" hidden></section>
+  <section id="v-groceries" hidden></section>
+  <section id="v-log" hidden></section>
+</main>
+</div>
+
+<dialog id="dlg" aria-label="Recipe"></dialog>
+<dialog id="fam" aria-label="Family"></dialog>
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

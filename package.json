@@ -1,0 +1,23 @@
+{
+  "name": "familymeals",
+  "version": "1.0.0",
+  "description": "Family Table: our family cookbook app",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jcowens69/familymeals.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jcowens69/familymeals/issues"
+  },
+  "homepage": "https://github.com/jcowens69/familymeals#readme",
+  "devDependencies": {
+    "wrangler": "^4.162.0"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "familymeals",
+  "main": "src/worker.js",
+  "compatibility_date": "2025-09-01",
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  // The database is created automatically on the first deploy.
+  "d1_databases": [{ "binding": "DB", "database_name": "familymeals" }],
+  "observability": { "enabled": true }
+}
