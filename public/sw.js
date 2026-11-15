@@ -1,6 +1,6 @@
 // Keeps the app shell available offline. Pages, scripts and recipes load from the network first,
 // so updates show up right away; the saved copy is used only when the network is down.
-const CACHE = "family-table-v4";
+const CACHE = "family-table-v5";
 const SHELL = ["/", "/index.html", "/app.js", "/styles.css", "/recipes.json", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {

@@ -484,7 +484,7 @@ function renderSheet(){
   const raters = Object.entries(S.ratings).filter(([, m]) => m && m[r.id] > 0);
   ensureProfiles(raters.map(([u]) => u));
   const voted = myPicks().includes(r.id), onMenu = planOf(weekKey(0)).includes(r.id);
-  const steps = (r.dir || "").split(/(?<=\.)\s+(?=[A-Z])/).filter(Boolean);
+  const steps = r.steps || (r.dir || "").split(/(?<=\.)\s+(?=[A-Z])/).filter(Boolean);
   const canRate = canPersonal();
   const keepChecks = [...dlg.querySelectorAll(".ing input")].map(i => i.checked);
   const oldReq = dlg.querySelector("#reqIn"), keepReq = oldReq && oldReq.dataset.rid === r.id ? {v: oldReq.value, f: document.activeElement === oldReq} : null;
@@ -516,7 +516,7 @@ function renderSheet(){
       ${others.length ? `<div class="box"><h4>Requests from the family this week</h4><ul class="reqs">${others.map(([u, t]) => `<li>${face(u)}<span><b>${esc(pname(u))}:</b> ${esc(t)}</span></li>`).join("")}</ul></div>` : ""}
       <div><h3>Ingredients</h3><ul class="ing">${(r.ing || []).map((x, i) => `<li><label><input type="checkbox" ${keepChecks[i] ? "checked" : ""}><span>${esc(x)}</span></label></li>`).join("")}</ul></div>
       <div><h3>Directions</h3><ol class="steps">${steps.map(s => `<li><span>${esc(s)}</span></li>`).join("")}</ol></div>
-      ${(r.note || []).map(n => `<p class="fine">${esc(n)}</p>`).join("")}
+      ${(r.tips || []).length ? `<div class="box tips">${r.tips.map(n => `<p>${esc(n)}</p>`).join("")}</div>` : ""}
     </div></div>`;
   if (keepReq) { const i = dlg.querySelector("#reqIn"); if (i) { i.value = keepReq.v; if (keepReq.f) i.focus(); } }
 }

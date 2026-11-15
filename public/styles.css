@@ -342,3 +342,5 @@ code.copyable{font-family:var(--f-mono);font-size:.82rem;background:var(--paper)
 .reqform label{font-weight:600;font-size:.9rem}
 .reqform .inp{height:40px;border-radius:10px;font-size:.95rem}
 .mypicks{margin-bottom:16px}
+.tips{display:grid;gap:6px;background:var(--warn-soft);border-color:transparent}
+.tips p{margin:0;font-size:.9rem}
